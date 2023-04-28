@@ -19,5 +19,5 @@ uvicorn main:app --reload
 ### 取得巴哈某版某文章的所有貼文資訊
 包含整個貼文串（每層樓）的所有內容。以下範例為巴哈電腦應用版，snA編號623838文章的所有內容
 ```url
-127.0.0.1:8000/baha/baha/get_article_contents?bsn=60030&snA=623838
+127.0.0.1:8000/baha/get_article_contents?bsn=60030&snA=623838
 ```
