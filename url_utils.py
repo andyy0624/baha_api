@@ -11,7 +11,7 @@ class UrlBuilder():
         params = {**self._params, **args_dict, **kwargs_dict}
         query_string = urlencode(params)
         return f"{self._base_url}?{query_string}"
-    def _parse_url(self):
+    def _parse_url(self) -> tuple:
         parsed_url = urlparse(self._url)
         base_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
         param_dict = dict([x.split('=') for x in parsed_url.query.split('&')]) if parsed_url.query != "" else {}
@@ -34,3 +34,4 @@ if __name__ == "__main__":
     baha_url_builder = UrlBuilder(url)
     baha_url_builder(bsn=23997)
     "".split('&')
+    baha_url_builder._parse_url()
