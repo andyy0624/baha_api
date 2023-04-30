@@ -1,2 +1,3 @@
-obsolete/*
-__pycache__/*
+obsolete/
+__pycache__/
+.vscode/
