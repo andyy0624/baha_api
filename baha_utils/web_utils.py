@@ -19,6 +19,7 @@ class UrlBuilder:
         self._url = url
         self._base_url, self._params = self.parse_url()
 
+    # 在原先的url上，再加上任意的parameter
     def __call__(self, *args, **kwargs) -> str:
         args_dict = dict([arg.split("=") for arg in args])
         kwargs_dict = kwargs
@@ -26,6 +27,7 @@ class UrlBuilder:
         query_string = urlencode(params)
         return f"{self._base_url}?{query_string}"
 
+    # 解析url，返回基本路徑以及GET parameter
     def parse_url(self) -> tuple:
         parsed_url = urlparse(self._url)
         base_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
@@ -55,23 +57,28 @@ class WebRequester:
                 wait = WebDriverWait(driver, 100)
                 # 等待網頁全部讀取完畢
                 wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                
+
+                # 找到所有展開留言按鈕
                 elements = driver.find_elements_by_css_selector(
                     "a[id^='showoldCommend_']"
                 )
-                
-                if len(elements )>0:
+
+                if len(elements) > 0:
+                    # 點選所有按鈕
                     for anchor in elements:
                         anchor.click()
                         time.sleep(0.1)
-                    while not all(e.get_attribute("style") == "display: none;" for e in elements):
+                    # 檢查使否所有的留言是否都載入完畢
+                    while not all(
+                        e.get_attribute("style") == "display: none;" for e in elements
+                    ):
                         # 等待 1 秒後重新檢查
                         time.sleep(1)
+                        # 更新按鈕狀態
                         elements = driver.find_elements_by_css_selector(
                             "a[id^='showoldCommend_']"
                         )
-                        
-                    
+
                 html = driver.page_source
             soup = BeautifulSoup(html, features="lxml")
             return soup
