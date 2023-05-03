@@ -1,3 +1,12 @@
 obsolete/
 __pycache__/
 .vscode/
+baha_utils/__pycache__
+
+LICENSE.chromedriver
+chromedriver_win32.zip
+chromedriver.exe
+
+baha_api_test.ipynb
+
+
