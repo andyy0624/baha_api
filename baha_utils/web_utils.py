@@ -20,11 +20,12 @@ class UrlBuilder:
         self._base_url, self._params = self.parse_url()
 
     # 在原先的url上，再加上任意的parameter
-    def __call__(self, *args, **kwargs) -> str:
-        args_dict = dict([arg.split("=") for arg in args])
-        kwargs_dict = kwargs
-        params = {**self._params, **args_dict, **kwargs_dict}
+    def __call__(self, **kwargs: dict[str, int]) -> str:
+        kwargs_dict = {k: v for k, v in kwargs.items() if v is not None}
+        params = {**self._params, **kwargs_dict}
         query_string = urlencode(params)
+        if query_string=="":
+            return f"{self._base_url}"
         return f"{self._base_url}?{query_string}"
 
     # 解析url，返回基本路徑以及GET parameter
