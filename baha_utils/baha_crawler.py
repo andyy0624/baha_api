@@ -6,7 +6,7 @@ from .web_utils import UrlBuilder
 from .article_handler import (
     ArticleHandler,
     WebRequester,
-    BahaWebArguments,
+    WebArguments,
     QuerryParams,
     BAHA_URL,
     B_PAGE,
@@ -51,34 +51,38 @@ class BahaCrawler:
             article_urls += [article_url]
         return article_urls
 
+    def get_article_content(
+        self,
+        web_args: WebArguments,
+        text_only: Optional[bool] = True,
+        sub_page_limit_num: Optional[int] = 1,
+        sub_page_wait_time: Optional[Union[int, float]] = WAIT_TIME,
+    ) -> dict:
+        return ArticleHandler(web_args).get_article_content(
+            text_only=text_only,
+            sub_page_limit_num=sub_page_limit_num,
+            sub_page_wait_time=sub_page_wait_time,
+        )
+
     def get_pages_article_contents(
         self,
         bsn: Union[int, str],
+        text_only: Optional[bool] = True,
         start_page: Optional[Union[int, str]] = 1,
         end_page: Optional[Union[int, str]] = None,
-        sub_pages_limit_num: Optional[int] = 1,
-        sub_pages_wait_time: Optional[Union[int, float]] = WAIT_TIME,
-    ):
+        sub_page_limit_num: Optional[int] = 1,
+        sub_page_wait_time: Optional[Union[int, float]] = WAIT_TIME,
+    ) -> list:
         article_urls = self.get_pages_article_urls(bsn, start_page, end_page)
         article_contents = []
         for article_url in article_urls:
             article_contents += [
                 ArticleHandler(
-                    BahaWebArguments(url=article_url, page_engine=self._page_engine)
-                ).get_article_contents(
-                    sub_pages_limit_num=sub_pages_limit_num,
-                    sub_page_wait_time=sub_pages_wait_time,
+                    WebArguments(url=article_url, page_engine=self._page_engine)
+                ).get_article_content(
+                    text_only=text_only,
+                    sub_page_limit_num=sub_page_limit_num,
+                    sub_page_wait_time=sub_page_wait_time,
                 )
             ]
         return article_contents
-
-    def get_article_contents(
-        self,
-        web_args: BahaWebArguments,
-        sub_pages_limit_num: Optional[int] = 1,
-        sub_pages_wait_time: Optional[Union[int, float]] = WAIT_TIME,
-    ):
-        ArticleHandler(web_args).get_article_contents(
-            sub_pages_limit_num=sub_pages_limit_num,
-            sub_page_wait_time=sub_pages_wait_time,
-        )
