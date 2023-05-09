@@ -1,8 +1,9 @@
-from typing import Optional, Union
-from fastapi import FastAPI
+from typing import Optional, Union, Callable
+from fastapi import FastAPI, Request
 import random as rd
+from urllib.parse import parse_qs
 
-from baha_utils import BahaCrawler, WebArguments, QuerryParams, WAIT_TIME, INF
+from baha_utils import BahaCrawler, WebArguments, QueryParams, WAIT_TIME_FN, INF, convert_qs_to_dict
 
 app = FastAPI()  # 建立一個 Fast API application
 page_engine = "selenium"  # VERY SLOW, NOT RECOMMENDED
@@ -10,50 +11,62 @@ page_engine = "selenium"  # VERY SLOW, NOT RECOMMENDED
 crawler = BahaCrawler(page_engine)
 
 
+
 @app.get("/")  # 指定 api 路徑 (get方法)
 def read_root():
     return {"Hello": "World"}
 
-
-@app.get("/baha/get_pages_article_urls")
-def get_pages_article_urls(
-    bsn: Union[int, str],
-    start_page: Optional[Union[int, str]] = 1,
-    end_page: Optional[Union[int, str]] = None,
-) -> list:
-    return crawler.get_pages_article_urls(bsn, start_page, end_page)
-
-
-@app.get("/baha/get_article_content")
-def get_article_content(
-    bsn: int,
-    snA: int,
-    text_only: Optional[bool] = True,
-    sub_pages_limit_num: Optional[int] = INF,
-    sub_pages_wait_time: Optional[Union[int, float]] = WAIT_TIME,
-) -> dict:
-    return crawler.get_article_content(
-        WebArguments(querry_params=QuerryParams(bsn, snA)),
-        text_only=text_only,
-        sub_page_limit_num=sub_pages_limit_num,
-        sub_page_wait_time=sub_pages_wait_time,
+# baha_urls
+@app.get("/baha/urls/default/{baha_query_string}")
+def baha_urls_default(baha_query_string: str) -> list:
+    query_params_dict = convert_qs_to_dict(baha_query_string)
+    return crawler.get_pages_article_urls(
+        web_args_b=WebArguments(query_params=QueryParams.BPage(**query_params_dict))
     )
 
 
-@app.get("/baha/get_pages_article_contents")
-def get_pages_article_contents(
-    bsn: Union[int, str],
-    text_only: Optional[bool] = True,
-    start_page: Optional[Union[int, str]] = 1,
-    end_page: Optional[Union[int, str]] = None,
-    sub_page_limit_num: Optional[int] = INF,
-    sub_page_wait_time: Optional[Union[int, float]] = WAIT_TIME,
-) -> list:
+@app.get("/baha/urls/{crawler_arg_string}/{baha_query_string}")
+def baha_urls(crawler_arg_string: str, baha_query_string: str) -> list:
+    crawler_arg_dict = convert_qs_to_dict(crawler_arg_string)
+    query_params_dict = convert_qs_to_dict(baha_query_string)
+    return crawler.get_pages_article_urls(
+        web_args_b=WebArguments(query_params=QueryParams.BPage(**query_params_dict)),
+        **crawler_arg_dict,
+    )
+
+
+# baha_article
+@app.get("/baha/article/default/{baha_query_string}")
+def baha_article_default(baha_query_string: str) -> dict:
+    query_params_dict = convert_qs_to_dict(baha_query_string)
+    return crawler.get_article_content(
+        web_args_c=WebArguments(query_params=QueryParams.CPage(**query_params_dict))
+    )
+
+
+@app.get("/baha/article/{crawler_arg_string}/{baha_query_string}")
+def baha_article(crawler_arg_string: str, baha_query_string: str) -> dict:
+    query_params_dict = convert_qs_to_dict(baha_query_string)
+    crawler_arg_dict = convert_qs_to_dict(crawler_arg_string)
+    return crawler.get_article_content(
+        web_args_c=WebArguments(query_params=QueryParams.CPage(**query_params_dict)),
+        **crawler_arg_dict,
+    )
+
+# baha_articles
+@app.get("/baha/articles/default/{baha_query_string}")
+def baha_articles(baha_query_string: str) -> list:
+    query_params_dict = convert_qs_to_dict(baha_query_string)
     return crawler.get_pages_article_contents(
-        bsn=bsn,
-        text_only=text_only,
-        start_page=start_page,
-        end_page=end_page,
-        sub_page_limit_num=sub_page_limit_num,
-        sub_page_wait_time=sub_page_wait_time,
+        web_args_b=WebArguments(query_params=QueryParams.BPage(**query_params_dict)),
+    )
+
+
+@app.get("/baha/articles/{crawler_arg_string}/{baha_query_string}")
+def baha_articles(crawler_arg_string: str, baha_query_string: str) -> list:
+    query_params_dict = convert_qs_to_dict(baha_query_string)
+    crawler_arg_dict = convert_qs_to_dict(crawler_arg_string)
+    return crawler.get_pages_article_contents(
+        web_args_b=WebArguments(query_params=QueryParams.BPage(**query_params_dict)),
+        **crawler_arg_dict,
     )
