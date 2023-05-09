@@ -48,10 +48,10 @@ def extract_text_dfs(elements, result_text: list):
         ):
             hyperlink_data = {
                 "hyperlink": elements.get("href"),
-                "text": elements.get_text(),
+                "text": elements.text,
             }
             result_text += [json.dumps(hyperlink_data)]
-        result_text += [elements.get_text()]
+        result_text += [elements.text]
         return
 
     for element in elements.contents:
