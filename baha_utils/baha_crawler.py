@@ -1,5 +1,5 @@
-from typing import Union, Optional
-import random as rd
+from typing import Union, Optional, Type, Callable
+from dataclasses import asdict
 
 
 from .web_utils import UrlBuilder
@@ -7,38 +7,21 @@ from .article_handler import (
     ArticleHandler,
     WebRequester,
     WebArguments,
-    QuerryParams,
     BAHA_URL,
     B_PAGE,
-    C_PAGE,
-    WAIT_TIME,
+    WAIT_TIME_FN,
+    INF,
 )
 
 
 class BahaCrawler:
     def __init__(self, page_engine: Optional[str] = "requests") -> None:
         self._page_engine = page_engine
-        self._web_requester = WebRequester("requests")
 
-    def get_pages_article_urls(
-        self,
-        bsn: Union[int, str],
-        start_page: Optional[Union[int, str]] = 1,
-        end_page: Optional[Union[int, str]] = None,
-    ) -> list:
-        if end_page is None:
-            end_page = start_page
-        article_urls = []
-        for i in range(start_page, end_page + 1):
-            article_urls += self.get_page_article_urls(bsn, i)
-        return article_urls
-
-    def get_page_article_urls(
-        self, bsn: Union[int, str], page: Union[int, str]
-    ) -> list:
+    def get_page_article_urls(self, web_args_b: WebArguments) -> list:
         url_builder = UrlBuilder(f"{BAHA_URL}/{B_PAGE}")
-        url = url_builder(bsn=bsn, page=page)
-        soup = self._web_requester(url)
+        url = url_builder(**asdict(web_args_b.query_params))
+        soup = WebRequester("requests")(url)
 
         article_urls = []
         item_blocks = soup.select("table.b-list tr.b-list-item")
@@ -51,38 +34,54 @@ class BahaCrawler:
             article_urls += [article_url]
         return article_urls
 
+    def get_pages_article_urls(
+        self,
+        web_args_b: WebArguments,
+        start_page: Optional[int] = 1,
+        end_page: Optional[int] = None,
+    ) -> list:
+        if end_page is None:
+            end_page = start_page
+        article_urls = []
+        for page in range(start_page, end_page + 1):
+            web_args_b.query_params.page = page
+            article_urls += self.get_page_article_urls(web_args_b)
+        return article_urls
+
     def get_article_content(
         self,
-        web_args: WebArguments,
-        text_only: Optional[bool] = True,
-        sub_page_limit_num: Optional[int] = 1,
-        sub_page_wait_time: Optional[Union[int, float]] = WAIT_TIME,
+        web_args_c: WebArguments,
+        text_only: Optional[int] = 1,
+        sub_page_limit_num: Optional[int] = INF,
+        sub_page_wait_time_fn: Optional[Callable] = WAIT_TIME_FN,
     ) -> dict:
-        return ArticleHandler(web_args).get_article_content(
+        web_args_c.page_engine = self._page_engine
+        return ArticleHandler(web_args_c).get_article_content(
             text_only=text_only,
             sub_page_limit_num=sub_page_limit_num,
-            sub_page_wait_time=sub_page_wait_time,
+            sub_page_wait_time_fn=sub_page_wait_time_fn,
         )
 
     def get_pages_article_contents(
         self,
-        bsn: Union[int, str],
-        text_only: Optional[bool] = True,
-        start_page: Optional[Union[int, str]] = 1,
-        end_page: Optional[Union[int, str]] = None,
-        sub_page_limit_num: Optional[int] = 1,
-        sub_page_wait_time: Optional[Union[int, float]] = WAIT_TIME,
+        web_args_b: WebArguments,
+        text_only: Optional[int] = 1,
+        start_page: Optional[int] = 1,
+        end_page: Optional[int] = None,
+        sub_page_limit_num: Optional[int] = INF,
+        sub_page_wait_time_fn: Optional[Callable] = WAIT_TIME_FN,
     ) -> list:
-        article_urls = self.get_pages_article_urls(bsn, start_page, end_page)
+        web_args_b.page_engine = self._page_engine
+        article_urls = self.get_pages_article_urls(web_args_b, start_page, end_page)
+
         article_contents = []
         for article_url in article_urls:
+            web_args_c = WebArguments(url=article_url,page_engine=self._page_engine)
             article_contents += [
-                ArticleHandler(
-                    WebArguments(url=article_url, page_engine=self._page_engine)
-                ).get_article_content(
+                ArticleHandler(web_args_c).get_article_content(
                     text_only=text_only,
                     sub_page_limit_num=sub_page_limit_num,
-                    sub_page_wait_time=sub_page_wait_time,
+                    sub_page_wait_time_fn=sub_page_wait_time_fn,
                 )
             ]
         return article_contents
