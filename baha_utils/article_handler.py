@@ -1,6 +1,6 @@
 import time
 import random as rd
-from typing import Union, Optional
+from typing import Union, Optional, Callable
 import json
 from datetime import datetime
 from bs4 import BeautifulSoup, NavigableString, Tag
@@ -8,15 +8,15 @@ import abc
 from dataclasses import dataclass, field, asdict
 
 from .web_utils import WebRequester, UrlBuilder
-from .dataclasses import WebArguments, QuerryParams, Ariticle, Reply, Comment
+from .datastructures import WebArguments, QueryParams, Ariticle, Reply, Comment
 
 
 BAHA_URL = "https://forum.gamer.com.tw"
 B_PAGE = "B.php"
 C_PAGE = "C.php"
 
-WAIT_TIME = (rd.random() * 4) + 1
-INF = float("inf")
+WAIT_TIME_FN = lambda: (rd.random() * 4) + 1
+INF = 999999
 
 
 class BasicHandler(abc.ABC):
@@ -26,7 +26,7 @@ class BasicHandler(abc.ABC):
         self._url_builder: UrlBuilder
         self._soup: BeautifulSoup
         self.url: str
-        self._querry_params: QuerryParams
+        self._query_params_c: QueryParams.CPage
         if web_args.soup is not None:
             self._soup = web_args.soup
             self.url = self._soup.select_one(
@@ -35,17 +35,17 @@ class BasicHandler(abc.ABC):
             print(self.url)
             self._url_builder = UrlBuilder(self.url)
             _, params_dict = self._url_builder.parse_url()
-            self._querry_params = QuerryParams(**params_dict)
+            self._query_params_c = QueryParams.CPage(**params_dict)
         if web_args.url is not None:
             self.url = web_args.url
             self._url_builder = UrlBuilder(self.url)
             _, params_dict = self._url_builder.parse_url()
-            self._querry_params = QuerryParams(**params_dict)
+            self._query_params_c = QueryParams.CPage(**params_dict)
             self._soup = self._web_requester(self.url)
-        if web_args.querry_params is not None:
-            self._querry_params = web_args.querry_params
+        if web_args.query_params is not None:
+            self._query_params_c = web_args.query_params
             self._url_builder = UrlBuilder(f"{BAHA_URL}/{C_PAGE}")
-            self.url = self._url_builder(**asdict(self._querry_params))
+            self.url = self._url_builder(**asdict(self._query_params_c))
             self._soup = self._web_requester(self.url)
 
 
@@ -57,7 +57,7 @@ class TextHandler(BasicHandler):
         self,
         reply_id: Optional[str] = None,
         comment_id: Optional[str] = None,
-        text_only: Optional[bool] = True,
+        text_only: Optional[int] = 1,
     ) -> str:
         if all([reply_id is not None, comment_id is not None]):
             raise ValueError("只能給定reply_id, comment_id兩種引數其中之一")
@@ -68,7 +68,7 @@ class TextHandler(BasicHandler):
             )
         elif comment_id is not None:
             elements = self._soup.select_one(
-                f"""div[id="{comment_id}"] span[class="comment_content"]"""
+                f"""div[id="{comment_id}"] span[class^="comment_content"]"""
             )
         else:
             raise ValueError("沒有給予reply_id或comment_id")
@@ -86,6 +86,25 @@ class TextHandler(BasicHandler):
                 result_text += [elements]
                 return
 
+            # 如果是youtube撥放器
+            if (
+                elements.name == "div"
+                and elements.has_attr("class")
+                and "videoWrapper" in elements["class"]
+                and "video-youtube" in elements["class"]
+            ):
+                ytb_url = elements.select_one("iframe[data-src]").get("data-src")
+                ytb_url_data = {"ytb_url": ytb_url}
+                result_text += [json.dumps(ytb_url_data, ensure_ascii=False)]
+
+            # 如果是anchor元素
+            if elements.name == "a" and elements.has_attr("href"):
+                hyperlink_data = {
+                    "hyperlink": elements.get("href"),
+                    "text": elements.text,
+                }
+                result_text += [json.dumps(hyperlink_data, ensure_ascii=False)]
+
             # leaf element 如果沒有存在子元素
             if not elements.find_all(recursive=False):
                 # image
@@ -100,19 +119,9 @@ class TextHandler(BasicHandler):
                 ):
                     img_data = {"emotion": elements.get("src")}
                     result_text += [json.dumps(img_data, ensure_ascii=False)]
-                # hyperlink
-                if (
-                    elements.name == "a"
-                    and elements.has_attr("href")
-                    and elements.has_attr("target")
-                    and elements["target"] == "_blank"
-                ):
-                    hyperlink_data = {
-                        "hyperlink": elements.get("href"),
-                        "text": elements.get_text(),
-                    }
-                    result_text += [json.dumps(hyperlink_data, ensure_ascii=False)]
-                result_text += [elements.get_text()]
+
+                # 取得文字
+                result_text += [elements.text]
                 return
 
             for element in elements.contents:
@@ -130,7 +139,7 @@ class CommentHandler(TextHandler):
         super().__init__(web_args)
 
     def _get_comment_contents(
-        self, reply_id: str, text_only: Optional[bool] = True
+        self, reply_id: str, text_only: Optional[int] = 1
     ) -> list:
         comments = self._soup.select(
             f"section[id='{reply_id}'] div[id^='Commendcontent_']"
@@ -143,12 +152,14 @@ class CommentHandler(TextHandler):
                 user_id=comment.select_one("img[data-gamercard-userid]").get(
                     "data-gamercard-userid"
                 ),
-                user_name=comment.select_one("a[class='reply-content__user']").text,
-                content=self.get_text(comment_id=comment_id, text_only=text_only),
+                user_name=comment.select_one(
+                    "a[class='reply-content__user']"
+                ).text,
+                content=self.text(comment_id=comment_id, text_only=text_only),
                 floor=int(
-                    comment.select_one("div[name='comment_floor']").text.replace(
-                        "B", ""
-                    )
+                    comment.select_one("div[name='comment_floor']")
+                    .text
+                    .replace("B", "")
                 ),
                 publish_time=datetime.strptime(
                     comment.select_one("div[data-tippy-content]")
@@ -167,7 +178,7 @@ class ReplyHandler(CommentHandler):
     def __init__(self, web_args: WebArguments) -> None:
         super().__init__(web_args)
 
-    def _get_reply_contents(self, text_only: Optional[bool] = True) -> list:
+    def _get_reply_contents(self, text_only: Optional[int] = 1) -> list:
         replys = self._soup.select("section[id^='post_']")
         reply_contents = []
         for reply in replys:
@@ -176,7 +187,7 @@ class ReplyHandler(CommentHandler):
                 reply_id=reply_id,
                 user_id=reply.select_one(".userid").text,
                 user_name=reply.select_one(".username").text,
-                content=self.get_text(reply_id=reply_id, text_only=text_only),
+                content=self.text(reply_id=reply_id, text_only=text_only),
                 floor=int(reply.select_one(".floor").get("data-floor")),
                 publish_time=datetime.strptime(
                     reply.select_one(".edittime").get("data-mtime"), "%Y-%m-%d %H:%M:%S"
@@ -191,7 +202,7 @@ class ReplyHandler(CommentHandler):
                 else int(reply.select_one(".postbp span").text)
                 if reply.select_one(".postbp span").text != "-"
                 else 0,
-                comments=self._get_comment_contents(reply_id),
+                comments=self._get_comment_contents(reply_id, text_only=text_only),
             )
             reply_contents += [reply_content]
         return reply_contents
@@ -203,9 +214,9 @@ class ArticleHandler(ReplyHandler):
 
     def get_article_content(
         self,
-        text_only: Optional[bool] = True,
+        text_only: Optional[int] = 1,
         sub_page_limit_num: Optional[int] = INF,
-        sub_page_wait_time: Optional[Union[int, float]] = WAIT_TIME,
+        sub_page_wait_time_fn: Optional[Callable] = WAIT_TIME_FN,
     ) -> dict:
         article_title = self._soup.select_one("h1[class^='c-post__header__title']")
         article_title = article_title.text
@@ -220,13 +231,13 @@ class ArticleHandler(ReplyHandler):
                 reply_content = self._get_reply_contents(text_only=text_only)
                 reply_contents += reply_content
             else:
-                querry_params = self._querry_params
-                querry_params.page = sub_page
+                query_params_c = self._query_params_c
+                query_params_c.page = sub_page
                 reply_content = ReplyHandler(
-                    WebArguments(querry_params=querry_params)
+                    WebArguments(query_params=query_params_c)
                 )._get_reply_contents(text_only=text_only)
                 reply_contents += reply_content
-            time.sleep(sub_page_wait_time)
+            time.sleep(sub_page_wait_time_fn())
 
         article_content = Ariticle(
             title=article_title,
