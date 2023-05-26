@@ -1,6 +1,6 @@
 from urllib.parse import urlencode, urlparse
 import requests
-from typing import Union, Optional
+from typing import Union, Optional, Type, Any, get_type_hints, get_origin, get_args
 import time
 
 
@@ -16,17 +16,32 @@ HEADERS = {
 }
 
 
-def convert_qs_to_dict(query_string: str) -> dict:
+def cast_value_by_key(cls: Type[Any], key: str, value: str):
+    hints = get_type_hints(cls)
+    try:
+        typing_hint_origin = get_origin(hints[key])
+        # 若非泛型類
+        if typing_hint_origin is None:
+            return hints[key](value)
+        if typing_hint_origin is Union:
+            return get_args(hints[key])[0](value)
+        return value
+    except:
+        return value
+
+
+def convert_qs_to_dict(cls: Type[Any], query_string: str) -> dict:
     if query_string == "" or query_string == None:
         return {}
     query_params_list = [q.split("=") for q in query_string.split("&")]
-    query_params_dict = {k: int(v) for k, v in query_params_list}
+    query_params_dict = {k: cast_value_by_key(cls, k, v) for k, v in query_params_list}
     return query_params_dict
 
 
 class UrlBuilder:
-    def __init__(self, url: str) -> None:
+    def __init__(self, cls: Type[Any], url: str) -> None:
         self._url = url
+        self._cls = cls
         self._base_url, self._params = self.parse_url()
 
     # 在原先的url上，再加上任意的parameter
@@ -39,10 +54,10 @@ class UrlBuilder:
         return f"{self._base_url}?{query_string}"
 
     # 解析url，返回基本路徑以及GET parameter
-    def parse_url(self) -> tuple:
+    def parse_url(self) -> tuple[str, dict]:
         parsed_url = urlparse(self._url)
         base_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        param_dict = convert_qs_to_dict(parsed_url.query)
+        param_dict = convert_qs_to_dict(self._cls, parsed_url.query)
         return base_url, param_dict
 
 
