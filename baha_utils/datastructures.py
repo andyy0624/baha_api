@@ -42,17 +42,12 @@ class QueryParams:
         bsn: int
         snA: int
         page: Optional[int] = None
-
-        def __init__(
-            self, bsn: int, snA: int, page: Optional[int] = None, **kwargs
-        ) -> None:
-            self.bsn = bsn
-            self.snA = snA
-            self.page = page
+        tnum: Optional[int] = None
+        to: Optional[int] = None
 
         @classmethod
         def attributes(cls) -> list:
-            return list(vars(cls(bsn=0, page=None, snA=0)))
+            return list(vars(cls(bsn=0, snA=0)))
 
     @dataclass
     class BPage:
@@ -62,35 +57,42 @@ class QueryParams:
         qt: Optional[int] = None
         q: Optional[int] = None
 
-        def __init__(
-            self,
-            bsn: int,
-            subbsn: Optional[int] = None,
-            page: Optional[int] = None,
-            qt: Optional[int] = None,
-            q: Optional[int] = None,
-            **kwargs
-        ) -> None:
-            self.bsn = bsn
-            self.subbsn = subbsn
-            self.page = page
-            self.qt = qt
-            self.q = q
-
         @classmethod
         def attributes(cls) -> list:
-            return list(vars(cls(bsn=0, page=None, q=None, qt=None, subbsn=None)))
+            return list(vars(cls(bsn=0)))
+
+    @dataclass
+    class SearchPage:
+        bsn: int
+        q: str
+        page: Optional[int] = None
+        type: Optional[str] = None
+        field: Optional[str] = None
+        author: Optional[str] = None
+        sortType: Optional[str] = None
+        advancedSearch: Optional[int] = None
+        subbsn: Optional[int] = None
+        dateType: Optional[str] = None
+        startDate: Optional[str] = None
+        endDate: Optional[str] = None
+        gp: Optional[int] = None
+        
+        @classmethod
+        def attributes(cls) -> list:
+            return list(vars(cls(bsn=0, q='0')))
 
 
 @dataclass
 class WebArguments:
     soup: Optional[BeautifulSoup] = None
     url: Optional[str] = None
-    query_params: Optional[Union[QueryParams.BPage, QueryParams.CPage]] = None
+    query_params: Optional[Union[QueryParams.BPage, QueryParams.CPage, QueryParams.SearchPage]] = None
     page_engine: Optional[str] = "requests"
 
     def __post_init__(self):
         args = vars(self)
-        args_is_not_none = [1 if v is not None else 0 for k, v in args.items() if k != "page_engine"]
+        args_is_not_none = [
+            1 if v is not None else 0 for k, v in args.items() if k != "page_engine"
+        ]
         if sum(args_is_not_none) != 1:
-            raise ValueError("只能給定soup, url, query_params_c三種引數其中之一")
+            raise ValueError("只能給定soup, url, query_params三種引數其中之一")
