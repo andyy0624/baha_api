@@ -14,6 +14,7 @@ from .datastructures import WebArguments, QueryParams, Ariticle, Reply, Comment
 BAHA_URL = "https://forum.gamer.com.tw"
 B_PAGE = "B.php"
 C_PAGE = "C.php"
+SEARCH_PAGE = "search.php"
 
 WAIT_TIME_FN = lambda: (rd.random() * 4) + 1
 INF = 999999
@@ -33,18 +34,18 @@ class BasicHandler(abc.ABC):
                 "head>link[rel='canonical'][href^='https://forum.gamer.com.tw/C.php']"
             ).get("href")
             print(self.url)
-            self._url_builder = UrlBuilder(self.url)
+            self._url_builder = UrlBuilder(QueryParams.CPage, self.url)
             _, params_dict = self._url_builder.parse_url()
             self._query_params_c = QueryParams.CPage(**params_dict)
         if web_args.url is not None:
             self.url = web_args.url
-            self._url_builder = UrlBuilder(self.url)
+            self._url_builder = UrlBuilder(QueryParams.CPage, self.url)
             _, params_dict = self._url_builder.parse_url()
             self._query_params_c = QueryParams.CPage(**params_dict)
             self._soup = self._web_requester(self.url)
         if web_args.query_params is not None:
             self._query_params_c = web_args.query_params
-            self._url_builder = UrlBuilder(f"{BAHA_URL}/{C_PAGE}")
+            self._url_builder = UrlBuilder(QueryParams.CPage, f"{BAHA_URL}/{C_PAGE}")
             self.url = self._url_builder(**asdict(self._query_params_c))
             self._soup = self._web_requester(self.url)
 
@@ -155,7 +156,7 @@ class CommentHandler(TextHandler):
                 user_name=comment.select_one(
                     "a[class='reply-content__user']"
                 ).text,
-                content=self.text(comment_id=comment_id, text_only=text_only),
+                content=self.get_text(comment_id=comment_id, text_only=text_only),
                 floor=int(
                     comment.select_one("div[name='comment_floor']")
                     .text
@@ -187,7 +188,7 @@ class ReplyHandler(CommentHandler):
                 reply_id=reply_id,
                 user_id=reply.select_one(".userid").text,
                 user_name=reply.select_one(".username").text,
-                content=self.text(reply_id=reply_id, text_only=text_only),
+                content=self.get_text(reply_id=reply_id, text_only=text_only),
                 floor=int(reply.select_one(".floor").get("data-floor")),
                 publish_time=datetime.strptime(
                     reply.select_one(".edittime").get("data-mtime"), "%Y-%m-%d %H:%M:%S"
